@@ -69,6 +69,20 @@ static void hilo(pthread_t *t, void *(*f)(void *), void *a) {
     if (pthread_create(t, NULL, f, a)) { fputs("error al crear un hilo\n", stderr); exit(1); }
 }
 
+static void registrar(const char *fmt, ...) {
+    char b[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(b, sizeof b, fmt, ap);
+    va_end(ap);
+    pthread_mutex_lock(&g_mtx_log);
+    fputs(b, stdout);
+    fflush(stdout);
+    pthread_mutex_unlock(&g_mtx_log);
+}
+
+static int retardo(unsigned *s) { return cfg.dmin + (int)(rand_r(s) % (unsigned)(cfg.dmax - cfg.dmin + 1)); }
+
 int main(void) {
     printf("Torneo de Komikan Concurrente\n");
     return 0;
