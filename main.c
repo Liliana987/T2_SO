@@ -1,94 +1,73 @@
 #define _POSIX_C_SOURCE 200809L
-#include <stdio.h>
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #define LADO 5
-#define N_GRID (LADO * LADO)        
-#define NODO_TOP N_GRID              
-#define NODO_LEFT (N_GRID + 1)
-#define NODO_RIGHT (N_GRID + 2)
-#define N_NODOS (N_GRID + 3)
-#define NODO(x, y) ((y) * LADO + (x)) 
-#define N_PERROS 12
-#define N_PIEZAS (N_PERROS + 1)         
-#define CAPTURAS_PARA_GANAR 6
-#define MAX_VECINOS 8
-#define MAX_MOVIMIENTOS 2000         
-#define CELDA_LIBRE (-1)
-#define CELDA_PUMA (-2)               
-
-enum { GANA_NADIE, GANA_PUMA, GANA_PERROS };
-enum { ROL_NINGUNO, ROL_PUMA, ROL_PERROS };
-enum { RES_NINGUNO, RES_GANO, RES_PERDIO, RES_SIN_GANADOR, RES_ERROR };
+#define NG (LADO * LADO)              
+#define TOP NG                       
+#define TIZQ (NG + 1)
+#define TDER (NG + 2)
+#define NN (NG + 3)
+#define N(x, y) ((y) * LADO + (x))    
+#define NP 13                        
+#define MAXV 8
+#define MAX_MOVS 2000               
+enum { NADIE, PUMA, PERROS };
 
 typedef struct {
     unsigned seed;
-    int delay_min, delay_max;           
-    int puma_init;                      
-    int perro_init[N_PERROS];           
-    int prob_fallo;                     
+    int dmin, dmax, prob_fallo, puma, perro[NP];
 } Config;
 
-typedef struct {
-    int id;
-    int rol;
-    int terminado;
-    int resultado;
-} Jugador;
-
 typedef struct Mesa Mesa;
-
-typedef struct {
-    Mesa *mesa;
-    int id;                            
-    unsigned seed;
-} Pieza;
+typedef struct { Mesa *m; int id; unsigned seed; } Pieza;
 
 struct Mesa {
-    int id, jug_puma, jug_perros;
-    pthread_mutex_t mtx;                
-    pthread_cond_t cv_fin;
-    int tablero[N_NODOS];
-    int pos_puma;
-    int pos_perro[N_PERROS];
-    int viva[N_PERROS];
-    int capturas, movimientos;
-    int terminada, ganador;
-    char motivo[80];
-    Pieza piezas[N_PIEZAS];
-    pthread_t hilos[N_PIEZAS];
+    int id, jp, jd;                   
+    pthread_mutex_t mtx;           
+    pthread_cond_t cv;
+    int tab[NN];                     
+    int pos[NP], viva[NP], latido[NP];
+    atomic_int vista_puma;            
+    int capturas, movs, fin, ganador, caido;
+    char motivo[96];
+    Pieza pz[NP];
+    pthread_t th[NP];
 };
 
-static Config g_cfg;                  
-static int g_N, g_M;
-static int vecinos[N_NODOS][MAX_VECINOS];
-static int n_vec[N_NODOS];         
+typedef struct { int id; const char *rol, *res; } Jugador;
 
-static pthread_mutex_t g_mtx_cola = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t g_cv_cola = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t g_mtx_log = PTHREAD_MUTEX_INITIALIZER;
-static sem_t g_sem_mesas;
-static sigset_t g_sigset;
+static Config cfg = {42, 50, 300, 0, N(2, 2), {0}};
+static int vec[NN][MAXV], nvec[NN];        
+static int sal[NN][MAXV][2], nsal[NN];   
+static int dist[NN][NN];                  
 
-static Jugador *g_jugadores;       
+static int g_N, g_M, g_ini, g_fin, g_mm_fin;
+static Jugador *g_jug;
 static int *g_cola;
-static int g_cola_ini, g_cola_fin;
-static int g_mm_fin;                
+static pthread_mutex_t g_mtx_cola = PTHREAD_MUTEX_INITIALIZER, g_mtx_log = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_cv_cola = PTHREAD_COND_INITIALIZER;
+static sem_t g_sem;
+static sigset_t g_sig;
+static atomic_int g_stop, g_fin_normal, g_activas, g_max, g_partidas;
 
-static atomic_int g_stop;         
-static atomic_int g_fin_normal;
-static atomic_int g_activas, g_max_activas, g_partidas;
+static void *xcalloc(size_t n, size_t s) {
+    void *p = calloc(n, s);
+    if (!p) { fputs("sin memoria\n", stderr); exit(1); }
+    return p;
+}
 
-static const int DX[4] = {1, -1, 0, 0};
-static const int DY[4] = {0, 0, 1, -1};
+static void hilo(pthread_t *t, void *(*f)(void *), void *a) {
+    if (pthread_create(t, NULL, f, a)) { fputs("error al crear un hilo\n", stderr); exit(1); }
+}
 
 int main(void) {
     printf("Torneo de Komikan Concurrente\n");
