@@ -83,6 +83,27 @@ static void registrar(const char *fmt, ...) {
 
 static int retardo(unsigned *s) { return cfg.dmin + (int)(rand_r(s) % (unsigned)(cfg.dmax - cfg.dmin + 1)); }
 
+static void dormir_ms(int ms) {
+    struct timespec t = {ms / 1000, (long)(ms % 1000) * 1000000L};
+    while (nanosleep(&t, &t) == -1 && errno == EINTR) {}
+}
+
+static const char *nombre(int n, char *buf) {
+    if (n == TOP) return "TRONO_TOP";
+    if (n == TIZQ) return "TRONO_LEFT";
+    if (n == TDER) return "TRONO_RIGHT";
+    snprintf(buf, 16, "(%d,%d)", n % LADO, n / LADO);
+    return buf;
+}
+
+static int leer(FILE *f, int n, int v[]) {
+    for (int i = 0; i < n; i++)
+        if (fscanf(f, "%d", &v[i]) != 1) return 0;
+    return 1;
+}
+
+static int en_rango(int x, int y) { return x >= 0 && x < LADO && y >= 0 && y < LADO; }
+
 int main(void) {
     printf("Torneo de Komikan Concurrente\n");
     return 0;
