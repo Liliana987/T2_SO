@@ -29,6 +29,44 @@ enum { GANA_NADIE, GANA_PUMA, GANA_PERROS };
 enum { ROL_NINGUNO, ROL_PUMA, ROL_PERROS };
 enum { RES_NINGUNO, RES_GANO, RES_PERDIO, RES_SIN_GANADOR, RES_ERROR };
 
+typedef struct {
+    unsigned seed;
+    int delay_min, delay_max;           
+    int puma_init;                      
+    int perro_init[N_PERROS];           
+    int prob_fallo;                     
+} Config;
+
+typedef struct {
+    int id;
+    int rol;
+    int terminado;
+    int resultado;
+} Jugador;
+
+typedef struct Mesa Mesa;
+
+typedef struct {
+    Mesa *mesa;
+    int id;                            
+    unsigned seed;
+} Pieza;
+
+struct Mesa {
+    int id, jug_puma, jug_perros;
+    pthread_mutex_t mtx;                
+    pthread_cond_t cv_fin;
+    int tablero[N_NODOS];
+    int pos_puma;
+    int pos_perro[N_PERROS];
+    int viva[N_PERROS];
+    int capturas, movimientos;
+    int terminada, ganador;
+    char motivo[80];
+    Pieza piezas[N_PIEZAS];
+    pthread_t hilos[N_PIEZAS];
+};
+
 
 int main(void) {
     printf("Torneo de Komikan Concurrente\n");
