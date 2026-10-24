@@ -67,6 +67,28 @@ struct Mesa {
     pthread_t hilos[N_PIEZAS];
 };
 
+static Config g_cfg;                  
+static int g_N, g_M;
+static int vecinos[N_NODOS][MAX_VECINOS];
+static int n_vec[N_NODOS];         
+
+static pthread_mutex_t g_mtx_cola = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_cv_cola = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t g_mtx_log = PTHREAD_MUTEX_INITIALIZER;
+static sem_t g_sem_mesas;
+static sigset_t g_sigset;
+
+static Jugador *g_jugadores;       
+static int *g_cola;
+static int g_cola_ini, g_cola_fin;
+static int g_mm_fin;                
+
+static atomic_int g_stop;         
+static atomic_int g_fin_normal;
+static atomic_int g_activas, g_max_activas, g_partidas;
+
+static const int DX[4] = {1, -1, 0, 0};
+static const int DY[4] = {0, 0, 1, -1};
 
 int main(void) {
     printf("Torneo de Komikan Concurrente\n");
